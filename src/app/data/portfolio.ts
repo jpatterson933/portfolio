@@ -224,7 +224,7 @@ const raw = {
       note: "AI Marketing Automation",
     },
     {
-      name: "AE Site Audits",
+      name: "Site Audits",
       description:
         "SEO, GEO (AI search readiness), and Cloudflare traffic analytics toolkit for AE Studio web properties. Runs Lighthouse CI, PageSpeed Insights, Google Search Console, and aiseo-audit across target URLs, while a GitHub Actions workflow collects path-level Cloudflare traffic on a weekly schedule to build a long-term dataset around an 8-day API retention window.",
       tags: [
