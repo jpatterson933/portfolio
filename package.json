@@ -9,13 +9,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:browser": "node scripts/test-browser.mjs",
-    "prebuild": "node scripts/prepare-graphics.mjs",
-    "predev": "node scripts/prepare-graphics.mjs",
     "test:character-stats": "node scripts/test-character-stats.mjs",
     "resume": "node --experimental-strip-types scripts/generate-resume.ts"
   },
   "dependencies": {
-    "@babylonjs/core": "9.25.0",
     "next": "16.1.6",
     "puppeteer": "^24.40.0",
     "react": "19.2.3",

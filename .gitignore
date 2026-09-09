@@ -105,4 +105,3 @@ dist
 css/style.css
 
 # Graphics compiler assets copied from the pinned package before dev/build
-/public/character-stats/vendor/

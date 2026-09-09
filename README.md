@@ -29,19 +29,21 @@ npm run test:character-stats
 
 Set `PORTFOLIO_BASE_URL` to test another local port. The browser checks cover search, combined filters, empty-state recovery, pagination, keyboard navigation, section links, and responsive overflow. Puppeteer provides the browser.
 
-The character stats checks cover lazy loading, graphics fallback, modal keyboard behavior, mobile layout, reduced motion, and renderer cleanup. Set `PORTFOLIO_SCREENSHOT_DIR` to save preview screenshots.
+The character stats checks cover animated fills and counters, final values, modal keyboard behavior, mobile layout, and reduced motion. Set `PORTFOLIO_SCREENSHOT_DIR` to save preview screenshots.
 
 ## Character stats
 
-The floating **See character stats** button opens a character sheet with a continuously animated 3D hologram. Counts come from the portfolio catalog. Attribute bars represent project counts relative to the largest category, not proficiency ratings.
+The floating **See character stats** button opens a dark-fantasy character panel with original engraved framing, serif typography, and an inset equipment list. Staggered green liquid bars and count-up numbers highlight each discipline. Counts come from the portfolio catalog. Attribute bars represent project counts relative to the largest category, not proficiency ratings.
 
-`src/app/modules/character-stats/` owns the data schema, derived stats, dialog, styles, Babylon.js scene, and GPU shaders. The scene loads only when the sheet opens. It uses WebGPU when available, falls back to WebGL, and preserves the readable stats if neither works. Closing the sheet releases graphics resources. Reduced-motion users get a static projection.
+After filling, the bars retain their values while small bubbles follow seamless circular paths inside the liquid. All bars use the same color, and sustained motion stays inside them. See `docs/character-card-design.md` for the Path of Exile 2 reference, visual tokens, and design rationale.
+
+`src/app/modules/character-stats/` owns the data schema, derived stats, dialog, CSS/SVG liquid graphics, and count animation. The card loads only when opened. Fills animate with transforms, while counters update outside React's render cycle. Animations pause when the page is hidden and are removed when the card closes. Reduced-motion users see the completed stats immediately.
 
 ### Railway
 
 Use `npm ci`, `npm run build`, and `npm run start`. Next.js uses Railway's `PORT` environment variable. Rendering runs in the visitor's browser; the server needs no GPU or separate graphics service.
 
-The `prebuild` and `predev` scripts copy version-matched WebGPU compiler assets from the installed Babylon.js package into `public/character-stats/vendor/`. These generated files are ignored by Git and served locally, with no runtime CDN dependency. If deploying a custom standalone image, copy `public/` and `.next/static/` alongside the standalone server, including these generated assets.
+The skill card needs no graphics engine, compiler assets, or external CDN. If deploying a custom standalone image, copy `public/` and `.next/static/` alongside the standalone server.
 
 ## Content
 

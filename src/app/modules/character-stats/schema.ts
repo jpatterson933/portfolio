@@ -21,9 +21,3 @@ export const CharacterStatsSchema = z.object({
 });
 
 export type CharacterStats = z.infer<typeof CharacterStatsSchema>;
-export type HologramQuality = "auto" | "high" | "low";
-export type HologramController = {
-  dispose: () => void;
-  setMotion: (enabled: boolean) => void;
-  setQuality: (quality: HologramQuality) => void;
-};

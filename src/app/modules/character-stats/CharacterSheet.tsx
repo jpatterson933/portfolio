@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { CharacterStats, HologramController } from "./schema";
+import { useEffect, useRef, type CSSProperties } from "react";
+import type { CharacterStats } from "./schema";
+import { animateStats } from "./animation";
+import { CharacterFrame, CharacterSeal } from "./CharacterFrame";
 import styles from "./character-stats.module.css";
 
 export function CharacterSheet({
@@ -12,66 +14,20 @@ export function CharacterSheet({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "fallback">(
-    "loading",
-  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    const host = stageRef.current;
-    if (!dialog || !host) return;
+    const sheet = sheetRef.current;
+    if (!dialog || !sheet) return;
     dialog.showModal();
     closeRef.current?.focus();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const abort = new AbortController();
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let controller: HologramController | undefined;
-    // An unavailable GPU never prevents reading the character sheet.
-    const timeout = window.setTimeout(() => {
-      setStatus("fallback");
-      abort.abort();
-    }, 20000);
-    const syncMotion = () => controller?.setMotion(!preference.matches);
-    preference.addEventListener("change", syncMotion);
-    void import("./scene")
-      .then(({ createHologram }) =>
-        createHologram(host, {
-          signal: abort.signal,
-          motion: !preference.matches,
-          quality: "auto",
-          onReady() {
-            window.clearTimeout(timeout);
-            if (!abort.signal.aborted) setStatus("ready");
-          },
-          onFailure() {
-            if (!abort.signal.aborted) {
-              setStatus("fallback");
-              abort.abort();
-            }
-          },
-        }),
-      )
-      .then((instance) => {
-        if (abort.signal.aborted) instance.dispose();
-        else {
-          controller = instance;
-          syncMotion();
-        }
-      })
-      .catch(() => {
-        if (!abort.signal.aborted) {
-          window.clearTimeout(timeout);
-          setStatus("fallback");
-        }
-      });
+    const stop = animateStats(sheet);
     return () => {
-      window.clearTimeout(timeout);
-      preference.removeEventListener("change", syncMotion);
-      abort.abort();
-      controller?.dispose();
+      stop();
       document.body.style.overflow = previousOverflow;
       dialog.close();
     };
@@ -91,13 +47,10 @@ export function CharacterSheet({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className={styles.sheet} data-character-status={status}>
-        <div className={styles.cornerTop} aria-hidden="true" />
+      <div ref={sheetRef} className={styles.sheet} data-character-card>
+        <CharacterFrame />
         <header className={styles.header}>
-          <div className={styles.systemLabel}>
-            <span /> Character profile{" "}
-            <span className={styles.headerDivider}>/</span> JP—001
-          </div>
+          <p className={styles.cardTitle}>Character</p>
           <button
             ref={closeRef}
             type="button"
@@ -111,20 +64,33 @@ export function CharacterSheet({
           </button>
         </header>
         <div className={styles.identity}>
-          <p className={styles.overline}>Class / Software engineer</p>
-          <h2 id="character-title">{stats.name}</h2>
-          <p id="character-description" className={styles.subtitle}>
-            A character sheet built from the work. <span>{stats.location}</span>
-          </p>
+          <CharacterSeal />
+          <div className={styles.identityText}>
+            <h2 id="character-title">{stats.name}</h2>
+            <p className={styles.characterClass}>Software engineer</p>
+            <p id="character-description" className={styles.subtitle}>
+              {stats.location}
+            </p>
+          </div>
+          <div className={styles.projectCount}>
+            <span>Project archive</span>
+            <strong data-count={stats.projectCount} aria-hidden="true">
+              {stats.projectCount}
+            </strong>
+            <span className="sr-only">{stats.projectCount}</span>
+            <small>projects & tools</small>
+          </div>
         </div>
         <div className={styles.display}>
           <section
-            className={`${styles.panel} ${styles.attributes}`}
+            className={styles.attributes}
             aria-labelledby="attribute-heading"
           >
             <div className={styles.panelHeading}>
-              <h3 id="attribute-heading">Core attributes</h3>
-              <span>01</span>
+              <div>
+                <h3 id="attribute-heading">Core attributes</h3>
+              </div>
+              <span className={styles.xpLabel}>Experience</span>
             </div>
             <p className={styles.panelCaption}>Projects by discipline</p>
             <div className={styles.attributeList}>
@@ -132,21 +98,50 @@ export function CharacterSheet({
                 <div
                   className={styles.attribute}
                   key={attribute.name}
+                  data-attribute={attribute.name}
                   style={
                     {
                       "--stat-fill": `${attribute.progress * 100}%`,
+                      "--delay": `${180 + index * 110}ms`,
+                      "--flow-delay": `${-index * 1.15}s`,
                     } as CSSProperties
                   }
                 >
                   <div className={styles.attributeLabel}>
-                    <span>
-                      <small>{String(index + 1).padStart(2, "0")}</small>
-                      {attribute.name}
-                    </span>
-                    <strong>{String(attribute.count).padStart(2, "0")}</strong>
+                    <span>{attribute.name}</span>
+                    <strong
+                      className={styles.statNumber}
+                      data-count={attribute.count}
+                      data-delay={180 + index * 110}
+                      aria-hidden="true"
+                    >
+                      {String(attribute.count).padStart(2, "0")}
+                    </strong>
                   </div>
-                  <div className={styles.statTrack} aria-hidden="true">
-                    <div />
+                  <div className={styles.vessel} aria-hidden="true">
+                    <div className={styles.liquid} data-liquid>
+                      <div className={styles.liquidBody} />
+                      <span className={styles.liquidLight} />
+                      <span className={styles.bubbles}>
+                        {[6, 9, 4, 7, 5, 10, 4, 8, 5].map((size, bubble) => (
+                          <i
+                            key={bubble}
+                            data-liquid-bubble
+                            style={
+                              {
+                                left: `${6 + bubble * 10}%`,
+                                "--bubble-size": `${size}px`,
+                                "--orbit-radius": `${2 + (bubble % 3)}px`,
+                                "--orbit-duration": `${3.5 + bubble * 0.47}s`,
+                                "--orbit-delay": `${-bubble * 0.83 - index * 0.61}s`,
+                              } as CSSProperties
+                            }
+                          />
+                        ))}
+                      </span>
+                    </div>
+                    <span className={styles.vesselTicks} />
+                    <span className={styles.glassShine} />
                   </div>
                   <span className="sr-only">
                     {attribute.count} {attribute.category} projects
@@ -155,32 +150,11 @@ export function CharacterSheet({
               ))}
             </div>
           </section>
-          <div className={styles.projection}>
-            <div className={styles.stage} ref={stageRef} aria-hidden="true" />
-            {status !== "ready" && (
-              <div className={styles.projectionFallback} aria-hidden="true">
-                <div className={styles.fallbackOrb}>
-                  <span>JP</span>
-                </div>
-              </div>
-            )}
-            <div className={styles.projectionLabel}>
-              <span className={styles.signalDot} />
-              {status === "loading" ? "Forming projection" : "The builder"}
-            </div>
-            <div className={styles.projectCount}>
-              <span>Project archive</span>
-              <strong>{stats.projectCount.toString().padStart(2, "0")}</strong>
-              <small>projects & tools</small>
-            </div>
-          </div>
-          <section
-            className={`${styles.panel} ${styles.loadout}`}
-            aria-labelledby="loadout-heading"
-          >
+          <section className={styles.loadout} aria-labelledby="loadout-heading">
             <div className={styles.panelHeading}>
-              <h3 id="loadout-heading">Equipped stack</h3>
-              <span>02</span>
+              <div>
+                <h3 id="loadout-heading">Equipped stack</h3>
+              </div>
             </div>
             <p className={styles.panelCaption}>Most-used technologies</p>
             <ol className={styles.equipmentList}>
@@ -193,9 +167,6 @@ export function CharacterSheet({
                     <strong>{item.name}</strong>
                     <span>{item.count} projects</span>
                   </div>
-                  <span className={styles.equipmentMark} aria-hidden="true">
-                    ▪
-                  </span>
                 </li>
               ))}
             </ol>
@@ -203,26 +174,24 @@ export function CharacterSheet({
         </div>
         <footer className={styles.footer}>
           <div className={styles.inventory}>
-            <div>
-              <strong>{stats.technologyCount}</strong>
-              <span>Technologies</span>
-            </div>
-            <div>
-              <strong>{stats.openSourceCount}</strong>
-              <span>Open source projects</span>
-            </div>
-            <div>
-              <strong>{stats.attributes.length}</strong>
-              <span>Disciplines</span>
-            </div>
+            {[
+              { value: stats.technologyCount, label: "Technologies" },
+              { value: stats.openSourceCount, label: "Open source projects" },
+              { value: stats.attributes.length, label: "Disciplines" },
+            ].map(({ value, label }) => (
+              <div key={label}>
+                <strong data-count={value} data-delay={150} aria-hidden="true">
+                  {value}
+                </strong>
+                <span className="sr-only">{value}</span>
+                <span>{label}</span>
+              </div>
+            ))}
           </div>
           <p>
-            Actual project counts.
-            <br />
-            Bars scale to your most active discipline.
+            Actual project counts. Bars scale to your most active discipline.
           </p>
         </footer>
-        <div className={styles.cornerBottom} aria-hidden="true" />
       </div>
     </dialog>
   );
