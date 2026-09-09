@@ -103,3 +103,6 @@ dist
 # TernJS port file
 .tern-port
 css/style.css
+
+# Graphics compiler assets copied from the pinned package before dev/build
+/public/character-stats/vendor/

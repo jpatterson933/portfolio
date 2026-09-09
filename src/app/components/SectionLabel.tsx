@@ -1,6 +1,13 @@
-export function SectionLabel({ children }: { children: React.ReactNode }) {
+export function SectionLabel({
+  children,
+  number,
+}: {
+  children: React.ReactNode;
+  number?: string;
+}) {
   return (
-    <p className="text-xs font-mono uppercase tracking-widest text-zinc-500">
+    <p className="section-label">
+      {number && <span aria-hidden="true">{number} / </span>}
       {children}
     </p>
   );

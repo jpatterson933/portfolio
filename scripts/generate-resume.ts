@@ -1,214 +1,229 @@
-import path from "path";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import puppeteer from "puppeteer";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const projectRoot = fileURLToPath(new URL("../", import.meta.url));
+const { values } = parseArgs({ options: { output: { type: "string" } } });
+const outputPath = values.output
+  ? path.resolve(values.output)
+  : path.join(projectRoot, "Jeffery_Patterson_Resume.pdf");
 
-const html = `<!DOCTYPE html>
+// Keep employment dates explicit. Project work does not imply a new employer.
+const experience = [
+  {
+    role: "Full Stack Engineer",
+    company: "AE Studio",
+    location: "Los Angeles, CA",
+    dates: "Aug 2023 - Present",
+    bullets: [
+      "Build client platforms and internal tools across education, AI, and business operations, from React interfaces and APIs to databases and deployment.",
+      "Developed a QTI 3.0 assessment API with bidirectional JSON/XML conversion, schema validation, student-response processing, and multi-tenant MongoDB storage.",
+      "Built a cross-platform command launcher with a shared plugin system and service integrations across Electron desktop, Capacitor mobile, and web applications.",
+      "Implemented PostgreSQL and MongoDB services, Redis caching, background jobs, and webhook pipelines to connect applications and automate team workflows.",
+      "Created dashboards and developer tools for website audits, traffic analysis, and build inspection; deployed applications on AWS and Railway.",
+    ],
+  },
+  {
+    role: "Full Stack Development Teaching Assistant",
+    company: "UC San Diego & edX",
+    location: "Remote",
+    dates: "Feb 2023 - Aug 2023",
+    bullets: [
+      "Mentored 30+ students in React, Node.js, Express, and databases; guided projects from concept to deployment through debugging, code review, and Git workflows.",
+    ],
+  },
+];
+
+const projects = [
+  {
+    name: "aiseo-audit",
+    label: "Open source",
+    url: "https://github.com/agencyenterprise/aiseo-audit",
+    description:
+      "Built a deterministic CLI and typed API that evaluate AI search readiness and produce actionable reports without AI API calls.",
+  },
+  {
+    name: "Fathom MCP Server",
+    label: "Open source",
+    url: "https://github.com/agencyenterprise/fathom-mcp-server",
+    description:
+      "Connected AI assistants to meeting recordings, transcripts, and summaries through Model Context Protocol, with OAuth, encrypted tokens, and per-user access controls.",
+  },
+  {
+    name: "Fabulist",
+    label: "Desktop application",
+    description:
+      "Built a writing workspace with Markdown editing, anchored comments, reviewable AI edits, Git history, and reusable agent plugins.",
+  },
+];
+
+const skills = [
+  ["Languages", "TypeScript, JavaScript, Python, C#, SQL, HTML, CSS"],
+  [
+    "Applications",
+    "React, Next.js, Node.js, Express, ASP.NET Core, Electron, Capacitor",
+  ],
+  [
+    "Data & AI",
+    "PostgreSQL, MongoDB, Redis, Drizzle ORM, BullMQ, OpenAI, Anthropic, MCP",
+  ],
+  [
+    "Delivery",
+    "AWS, Docker, Railway, GitHub Actions, Git, Vitest, Zod, k6, OAuth 2.0",
+  ],
+];
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]!,
+  );
+}
+
+async function generateResume(): Promise<void> {
+  const font = await readFile(
+    path.join(projectRoot, "src/app/fonts/GeistVF.woff"),
+  );
+  const html = `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="utf-8" />
+<title>Jeffery Patterson | Software Engineer</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-  html {
-    font-size: 10.5px;
-    line-height: 1.35;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    color: #1a1a1a;
-  }
-
-  body { padding: 36px 40px 28px 40px; }
-
-  a { color: #1a1a1a; text-decoration: none; }
-
-  /* ---- Header ---- */
-  .header { margin-bottom: 10px; }
-  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 1px; }
-  .header .title { font-size: 11.5px; font-weight: 500; color: #444; margin-bottom: 4px; }
-  .header .contact { font-size: 9.5px; color: #555; display: flex; flex-wrap: wrap; gap: 4px 12px; }
-  .header .contact a { color: #555; }
-
-  .divider { border: none; border-top: 1.5px solid #222; margin: 8px 0; }
-  .divider-light { border: none; border-top: 1px solid #ddd; margin: 6px 0; }
-
-  /* ---- Summary ---- */
-  .summary { font-size: 10px; color: #333; margin-bottom: 8px; line-height: 1.4; }
-
-  /* ---- Section ---- */
-  .section-title {
-    font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #1a1a1a;
-    margin-bottom: 5px;
-  }
-
-  /* ---- Skills Grid ---- */
-  .skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; margin-bottom: 8px; }
-  .skill-row { font-size: 9.5px; display: flex; }
-  .skill-label { font-weight: 600; min-width: 120px; color: #333; }
-  .skill-value { color: #555; }
-
-  /* ---- Experience ---- */
-  .job { margin-bottom: 7px; }
-  .job-header { display: flex; justify-content: space-between; align-items: baseline; }
-  .job-title { font-size: 10.5px; font-weight: 600; }
-  .job-date { font-size: 9px; color: #666; white-space: nowrap; }
-  .job-company { font-size: 9.5px; color: #555; margin-bottom: 2px; }
-  .job ul { padding-left: 14px; }
-  .job li { font-size: 9.5px; color: #333; margin-bottom: 1px; line-height: 1.35; }
-
-  /* ---- Projects ---- */
-  .projects-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 8px; }
-  .project { }
-  .project-name { font-size: 10px; font-weight: 600; }
-  .project-desc { font-size: 9px; color: #444; line-height: 1.35; }
-  .project-tech { font-size: 8.5px; color: #777; margin-top: 1px; }
-
-  /* ---- Education ---- */
-  .edu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; margin-bottom: 4px; }
-  .edu-item { font-size: 9.5px; color: #333; }
-  .edu-item strong { font-weight: 600; }
-  .edu-item .edu-date { color: #777; font-size: 9px; }
-
-  .cert { font-size: 9.5px; color: #333; }
+  @font-face { font-family: Geist; src: url(data:font/woff;base64,${font.toString("base64")}) format("woff"); font-weight: 100 900; font-style: normal; }
+  @page { size: Letter; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #202b33; font: 10pt/1.3 Geist, Arial, sans-serif; font-variant-ligatures: none; }
+  main { width: 8.5in; padding: 0.43in 0.5in 0.4in; }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: 25pt; line-height: 1.05; font-weight: 700; letter-spacing: -0.8pt; }
+  .title { margin-top: 5pt; font-size: 11pt; color: #365765; font-weight: 550; }
+  .contact { margin-top: 7pt; font-size: 9pt; color: #43515a; }
+  .links { margin-top: 3pt; font-size: 9pt; color: #43515a; }
+  .contact span + span::before, .links a + a::before { content: " / "; color: #98a4ab; padding: 0 6pt; }
+  .summary { margin-top: 11pt; padding-top: 10pt; border-top: 1.5pt solid #365765; }
+  section { margin-top: 8pt; }
+  h2 { margin-bottom: 7pt; padding-bottom: 4pt; border-bottom: 0.5pt solid #cbd2d6; color: #365765; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2pt; }
+  article { break-inside: avoid; }
+  article + article { margin-top: 7pt; }
+  .job-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; }
+  h3 { font-size: 10.5pt; font-weight: 650; }
+  .dates { flex-shrink: 0; font-size: 9pt; color: #52616b; }
+  .company { margin-top: 1pt; font-size: 9.5pt; }
+  .company strong { font-weight: 650; }
+  ul { margin: 4pt 0 0; padding-left: 12pt; }
+  li { padding-left: 1pt; margin-top: 3pt; }
+  .project-heading { display: flex; align-items: baseline; gap: 7pt; }
+  .project-label { color: #52616b; font-size: 8.5pt; }
+  .project p { margin-top: 2pt; }
+  .skills p + p { margin-top: 3pt; }
+  .skills strong { display: inline-block; width: 76pt; font-weight: 650; }
+  .education p { font-size: 9pt; }
+  .education p + p { margin-top: 3pt; }
 </style>
 </head>
 <body>
-
-  <!-- Header -->
-  <div class="header">
+<main>
+  <header>
     <h1>Jeffery Patterson</h1>
-    <div class="title">Software Engineer · Los Angeles, California</div>
-    <div class="contact">
-      <span>designframebuildweb@gmail.com</span>
-      <span>·</span>
-      <span>951-581-6263</span>
-      <span>·</span>
-      <a href="https://github.com/jpatterson933">github.com/jpatterson933</a>
-      <span>·</span>
-      <a href="https://www.linkedin.com/in/jefferywpatterson/">linkedin.com/in/jefferywpatterson</a>
-      <span>·</span>
-      <a href="https://portfolio-production-c6b6.up.railway.app/">https://portfolio-production-c6b6.up.railway.app</a>
-    </div>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- Summary -->
-  <div class="summary">
-    Full-stack engineer with 4+ years of professional experience building scalable web applications, RESTful APIs, data visualization tools, and cross-platform desktop and mobile apps. Lifelong Lakers fan, been watching every game since Kobe's rookie year, with a deep curiosity about basketball analytics and the factors that drive organizational success in the NBA. Rapid learner who thrives on picking up new languages and frameworks to meet the needs of the team.
-  </div>
-
-  <!-- Skills -->
-  <div class="section-title">Technical Skills</div>
-  <div class="skills-grid">
-    <div class="skill-row"><span class="skill-label">Languages</span><span class="skill-value">TypeScript, JavaScript, Python, C#, SQL, HTML, CSS</span></div>
-    <div class="skill-row"><span class="skill-label">Frontend</span><span class="skill-value">React, Next.js, Vue (familiar), Tailwind CSS, TanStack, HTML5 Canvas</span></div>
-    <div class="skill-row"><span class="skill-label">Backend</span><span class="skill-value">Node.js, Express, ASP.NET Core, REST APIs, BullMQ, Redis</span></div>
-    <div class="skill-row"><span class="skill-label">Databases</span><span class="skill-value">PostgreSQL, MongoDB, Drizzle ORM, Prisma, Entity Framework Core</span></div>
-    <div class="skill-row"><span class="skill-label">Cloud &amp; DevOps</span><span class="skill-value">AWS, Docker, Railway, GitHub Actions, CI/CD, Sentry</span></div>
-    <div class="skill-row"><span class="skill-label">Mobile / Desktop</span><span class="skill-value">Electron, Capacitor (iOS &amp; Android), cross-platform deployment</span></div>
-    <div class="skill-row"><span class="skill-label">Data &amp; Analytics</span><span class="skill-value">pgvector, k6 / Grafana, Lighthouse CI, OpenAI, Anthropic, LangChain</span></div>
-    <div class="skill-row"><span class="skill-label">Tooling</span><span class="skill-value">Git, Zod, Commander, Vitest, tsup, GraphQL, OAuth 2.0, MCP</span></div>
-  </div>
-
-  <hr class="divider-light" />
-
-  <!-- Experience -->
-  <div class="section-title">Experience</div>
-
-  <div class="job">
-    <div class="job-header">
-      <span class="job-title">Full Stack Engineer</span>
-      <span class="job-date">Aug 2023 - Present</span>
-    </div>
-    <div class="job-company">AE Studio · Los Angeles, CA</div>
-    <ul>
-      <li>Built and maintained internal web applications and client-facing platforms including data dashboards, assessment engines, webhook pipelines, and automation tooling</li>
-      <li>Developed a cross-platform launcher (Electron desktop + Capacitor iOS/Android) with 50+ plugin integrations, demonstrating mobile and desktop deployment capability</li>
-      <li>Architected a QTI 3.0-compliant assessment API with bidirectional JSON↔XML pipelines, load-tested to 5,000 virtual users via k6/Grafana, serving real students across the US in production</li>
-      <li>Created data visualization and analytics tooling including bundle heat-maps, SEO/traffic dashboards, and AI-powered audit CLIs, turning raw data into actionable insights</li>
-      <li>Implemented RESTful services backed by PostgreSQL and MongoDB with Redis caching, Drizzle ORM, and cloud deployment on AWS and Railway</li>
-    </ul>
-  </div>
-
-  <div class="job">
-    <div class="job-header">
-      <span class="job-title">Full Stack Development Teaching Assistant</span>
-      <span class="job-date">Feb 2023 - Aug 2023</span>
-    </div>
-    <div class="job-company">UC San Diego &amp; edX · Remote</div>
-    <ul>
-      <li>Mentored 30+ students through full-stack curriculum (React, Node.js, Express, MongoDB, MySQL, REST APIs) in an intensive bootcamp environment</li>
-      <li>Guided students from concept to deployed web applications, reinforcing code review practices and Git workflows</li>
-    </ul>
-  </div>
-
-  <hr class="divider-light" />
-
-  <!-- Select Projects -->
-  <div class="section-title">Select Projects</div>
-  <div class="projects-grid">
-    <div class="project">
-      <div class="project-name">Universal Launcher</div>
-      <div class="project-desc">Cross-platform launcher deployed as Electron desktop app (Mac/Windows) and Capacitor mobile app (iOS/Android) with 50+ plugin integrations across Linear, Slack, GitHub, Notion, and Spotify.</div>
-      <div class="project-tech">React · TypeScript · Node.js · MongoDB · Electron · Capacitor</div>
-    </div>
-    <div class="project">
-      <div class="project-name">NBA Twitter Bot</div>
-      <div class="project-desc">Automated bot aggregating NBA news from 10+ sources via Perplexity AI, using OpenAI embeddings with cosine similarity for duplicate detection and GPT-4 for content generation.</div>
-      <div class="project-tech">Python · OpenAI · Perplexity AI · scikit-learn · Selenium</div>
-    </div>
-    <div class="project">
-      <div class="project-name">Timeback: QTI Assessment Engine</div>
-      <div class="project-desc">Production assessment API with bidirectional JSON↔XML pipelines across 17 interaction types, XSD validation, and multi-tenant MongoDB storage. Load-tested to 5,000 VUs.</div>
-      <div class="project-tech">TypeScript · Node.js · Express · MongoDB · k6 · Grafana</div>
-    </div>
-    <div class="project">
-      <div class="project-name">aiseo-audit (Open Source)</div>
-      <div class="project-desc">Deterministic CLI auditing web pages for AI search readiness across 7 categories and 30+ factors. Ships as both a CLI and typed API with JSON, Markdown, and HTML output.</div>
-      <div class="project-tech">TypeScript · Node.js · NLP · cheerio · Zod · Vitest</div>
-    </div>
-  </div>
-
-  <hr class="divider-light" />
-
-  <!-- Education -->
-  <div class="section-title">Education</div>
-  <div class="edu-grid">
-    <div class="edu-item"><strong>UCLA</strong>, B.A. Political Science <span class="edu-date">(2013 - 2016)</span></div>
-    <div class="edu-item"><strong>UCLA Extension</strong>, Cybersecurity Certificate <span class="edu-date">(2022 - 2023)</span></div>
-    <div class="edu-item"><strong>UCLA Extension</strong>, Full Stack Developer Bootcamp <span class="edu-date">(2021)</span></div>
-    <div class="edu-item"><strong>Santa Monica College</strong>, A.S. Computer Science <span class="edu-date">(2022)</span></div>
-  </div>
-
-
+    <p class="title">Software Engineer | Full-stack applications, AI integrations & developer tools</p>
+    <p class="contact"><span>Los Angeles, CA</span><span><a href="mailto:designframebuildweb@gmail.com">designframebuildweb@gmail.com</a></span><span><a href="tel:+19515816263">951-581-6263</a></span></p>
+    <p class="links"><a href="https://github.com/jpatterson933">github.com/jpatterson933</a><a href="https://www.linkedin.com/in/jefferywpatterson/">linkedin.com/in/jefferywpatterson</a><a href="https://portfolio-production-c6b6.up.railway.app/">Portfolio</a></p>
+  </header>
+  <p class="summary">Full-stack engineer at AE Studio building web platforms, desktop apps, and AI integrations. Experience spans assessment systems, workflow automation, and open source developer tools.</p>
+  <section aria-label="Experience">
+    <h2>Experience</h2>
+    ${experience
+      .map(
+        (job) => `<article>
+      <div class="job-heading"><h3>${escapeHtml(job.role)}</h3><span class="dates">${escapeHtml(job.dates)}</span></div>
+      <p class="company"><strong>${escapeHtml(job.company)}</strong> | ${escapeHtml(job.location)}</p>
+      <ul>${job.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>
+    </article>`,
+      )
+      .join("")}
+  </section>
+  <section aria-label="Selected projects">
+    <h2>Selected Projects</h2>
+    ${projects
+      .map(
+        (project) => `<article class="project">
+      <div class="project-heading"><h3>${project.url ? `<a href="${escapeHtml(project.url)}">${escapeHtml(project.name)}</a>` : escapeHtml(project.name)}</h3><span class="project-label">${escapeHtml(project.label)}</span></div>
+      <p>${escapeHtml(project.description)}</p>
+    </article>`,
+      )
+      .join("")}
+  </section>
+  <section class="skills" aria-label="Technical skills">
+    <h2>Technical Skills</h2>
+    ${skills.map(([label, value]) => `<p><strong>${escapeHtml(label)}</strong>${escapeHtml(value)}</p>`).join("")}
+  </section>
+  <section class="education" aria-label="Education">
+    <h2>Education</h2>
+    <p><strong>UCLA</strong>, B.A. Political Science (2016) | <strong>Santa Monica College</strong>, A.S. Computer Science (2022)</p>
+    <p><strong>UCLA Extension</strong>, Full Stack Developer Bootcamp (2021); Cybersecurity Certificate (2023)</p>
+  </section>
+</main>
 </body>
 </html>`;
 
-const generateResume = async (): Promise<void> => {
   const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: "networkidle0" });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 1 });
+    // All assets are embedded. Generation works without network access.
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      if (/^https?:/.test(request.url())) void request.abort();
+      else void request.continue();
+    });
+    await page.emulateMediaType("print");
+    await page.setContent(html, { waitUntil: "load" });
+    await page.evaluate(() => document.fonts.ready);
+    const layout = await page.evaluate(() => ({
+      height: document.querySelector("main")!.getBoundingClientRect().height,
+      width: document.documentElement.scrollWidth,
+      fontLoaded: document.fonts.check("10pt Geist"),
+    }));
+    if (!layout.fontLoaded)
+      throw new Error("The bundled resume font did not load.");
+    if (layout.height > 1056 || layout.width > 816) {
+      throw new Error(
+        `Resume exceeds one Letter page (${Math.ceil(layout.height)}px tall, ${layout.width}px wide). Shorten the content before generating.`,
+      );
+    }
+    const pdf = await page.pdf({
+      format: "Letter",
+      preferCSSPageSize: true,
+      printBackground: true,
+      tagged: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    // Replace only after layout validation and a complete PDF render.
+    const temporaryPath = `${outputPath}.${process.pid}.tmp`;
+    await writeFile(temporaryPath, pdf);
+    await rename(temporaryPath, outputPath);
+    console.log(`One-page resume generated: ${outputPath}`);
+    console.log(
+      `Layout: ${Math.ceil(layout.height)} / 1056px; embedded local font; selectable text.`,
+    );
+  } finally {
+    await browser.close();
+  }
+}
 
-  const outputPath = path.join(__dirname, "..", "Jeffery_Patterson_Resume.pdf");
-
-  await page.pdf({
-    path: outputPath,
-    format: "Letter",
-    printBackground: true,
-    margin: { top: "0", right: "0", bottom: "0", left: "0" },
-  });
-
-  await browser.close();
-  console.log(`Resume generated: ${outputPath}`);
-};
-
-generateResume();
+generateResume().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
